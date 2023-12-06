@@ -1,4 +1,4 @@
-import cv2
+
 import os
 import streamlit as st
 from streamlit_option_menu import option_menu
@@ -11,6 +11,7 @@ import pickle
 from pathlib import Path
 from PIL import Image
 import random
+import cv2
 import plotly.express as px
 from sklearn.metrics import accuracy_score
 from sklearn.decomposition import PCA
