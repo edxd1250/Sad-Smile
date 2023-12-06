@@ -37,7 +37,7 @@ jsonschema==4.19.2
 jsonschema-specifications==2023.7.1
 jupyter_client==8.6.0
 jupyter_core==5.5.0
-keras==2.15.0
+
 kiwisolver==1.4.5
 libclang==16.0.6
 Markdown==3.5.1
@@ -86,16 +86,8 @@ soupsieve==2.5
 stack-data==0.6.3
 sympy==1.12
 tenacity==8.2.3
-tensorboard==2.15.1
-tensorboard-data-server==0.7.2
-tensorflow==2.15.0
-tensorflow-cpu==2.15.0
-tensorflow-estimator==2.15.0
-tensorflow-io-gcs-filesystem==0.34.0
 termcolor==2.3.0
 threadpoolctl==3.2.0
-torch==2.1.1
-torchvision==0.16.1
 tornado==6.4
 tqdm==4.66.1
 traitlets==5.14.0
