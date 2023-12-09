@@ -151,8 +151,8 @@ labels = {0: 'Angry', 1: 'Fear', 2: 'Happy', 3: 'Neutral', 4: 'Sad', 5: 'Suprise
 #X_test, y_test, test_labels = load_data(TEST_DIR,IMG_SIZE)
 
 with st.sidebar:
-    selected = option_menu("Main Menu", ["Introduction", "Model Explorer", "About Me"], 
-        icons=['house', 'layers', 'text-left'], menu_icon="cast", default_index=0)
+    selected = option_menu("Main Menu", ["Introduction", "Model Explorer", "Conclusion","About Me"], 
+        icons=['house', 'layers', 'text-left', 'union'], menu_icon="cast", default_index=0)
  
 
 if selected == "Introduction":
@@ -598,6 +598,27 @@ if selected == "Model Explorer":
             if saveslot == "Save Slot 2":
                 usermodel2 = usermodel
                 st.session_state['usermodel2'] = usermodel
+if selected == "Conclusion":
+    tab1,tab2 = st.tabs(["Results/Discussion", "Future Work"])
+    with tab1:
+        st.header("Results/Discussion")
+        st.write("Model performace was measured via accuracy score collected by running models against the testing set described earlier. Unfortunatly, model performance for all models was poor, with accuracies around 36-38% for all four models. We discuss some possibilities for this below:")
+        st.write("**Quality of Training Data**")
+        st.write("An unforeseen challenge surfaced from potential mislabeling within the dataset used for both training and testing. The accuracy of any machine learning model critically hinges on the quality and accuracy of its training data. In our case, the presence of mislabeled samples might have significantly impacted the models' ability to accurately discern and classify facial expressions.")
+        st.write("**Complexity of Facial Emotion Recognition**")
+        st.write('''Facial emotion recognition is an intricate task that demands nuanced feature extraction and pattern recognition. The scikit-learn models, while versatile, 
+        might struggle to capture the intricate and hierarchical patterns present in facial expressions due to their inherent 
+        simplicity and linearity. Additionally, these models relied heavily on handcrafted features, which might not adequately capture the rich information embedded in facial images. 
+        Extracting relevant features from raw pixels in facial images is a challenging task, and the limitations of 
+        manually engineered features might have hindered the models' ability to generalize well on this complex dataset.''')
+    with tab2:
+        st.header("Future Work")
+        st.write('''Despite the current limitations, the potential applications of accurate facial expression recognition technology are vast. 
+        In the realm of mental health, these models could assist therapists and healthcare professionals in monitoring patients' emotional states, 
+        aiding in diagnoses or treatment plans. Moreover, this technology holds promise for human-computer interaction, facilitating more intuitive and responsive interfaces. Applications in gaming, virtual reality, and user experience design could benefit from systems capable of understanding and responding to users' emotional cues.
+
+''')
+
 if selected == "About Me": 
     st.header("About Me")
     col1, col2 = st.columns([1,1])
