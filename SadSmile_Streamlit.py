@@ -323,7 +323,7 @@ if selected == "Model Explorer":
             fittedscaler = pickle.load(f)
         with open(OUTPUT_DIR / 'trainedPCA.pickle', "rb") as f:
             fittedpca = pickle.load(f)
-        with open(OUTPUT_DIR / 'trainedLDA.pickle', "rb") as f:
+        with open(OUTPUT_DIR / 'trainedlda.pickle', "rb") as f:
             fittedlda = pickle.load(f)
         
         comparemode = st.toggle('Compare Models?')
