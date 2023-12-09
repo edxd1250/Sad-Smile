@@ -26,13 +26,6 @@ from sklearn.svm import SVC
 
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
-def reduce_array(dataset):
-    reduceddata = np.zeros((len(dataset),len(dataset[0])))
-    for i in tqdm(range(len(dataset))):
-        for j in range(len(dataset[i])):
-            #converting each array to a single float of the mean value of each value in the array
-            reduceddata[i,j] = dataset[i,j].mean()
-    return reduceddata
 
 def select_bar_column_pallete(values, select, sel_color = 'orange', other_color = 'lightgrey'):
     pal = []
@@ -113,8 +106,41 @@ def getclasssamples(y, percent=.3):
     #for some reason this index keeps getting generated??
     if samples[0] > len(y):
         samples = np.delete(samples, 0)
-
+    
     return samples
+
+def apply_pca(dataset, ratio=.95, sample=True):
+    #reshape image data into 2d array for pca imput
+    shape = (len(dataset[0])*len(dataset[0,0]))
+    pcaprep = np.reshape(dataset, (len(dataset),shape))
+    #apply pca (default 95% of variance)
+    pca = PCA(ratio)
+    pca.fit(pcaprep)
+    transform = pca.transform(pcaprep)
+    if sample == True:
+        fig, ax = plt.subplots(1,2)
+        inverse = pca.inverse_transform(transform)
+        ax[0].imshow(dataset[10], cmap = 'gray')
+        ax[0].set_title("Original")
+        ax[1].imshow(inverse[10].reshape(48,48), cmap='gray')
+        ax[1].set_title("Transformed")
+        
+    return pca, transform, fig, ax
+
+def visualize_pca(dataset, ratio=.95):
+    shape = (len(dataset[0])*len(dataset[0,0]))
+    pcaprep = np.reshape(dataset, (len(dataset),shape))
+    #running pca without components to capture all component data
+    pca = PCA()
+    pca.fit(pcaprep)
+    #plotting components vs cumulative explained ratio
+    plt.plot(np.cumsum(pca.explained_variance_ratio_))
+    #making ratio line
+    x = np.linspace(0, (len(dataset[0])*len(dataset[0,0])), 100)
+    y = ratio * np.ones_like(x)
+    plt.plot(x, y, label=f'y = {ratio}')
+
+
 OUTPUT_DIR = Path('output')
 TRAIN_DIR = ('imagedata/Training/Training')
 TEST_DIR = ('imagedata/Testing/Testing')
@@ -125,12 +151,12 @@ labels = {0: 'Angry', 1: 'Fear', 2: 'Happy', 3: 'Neutral', 4: 'Sad', 5: 'Suprise
 #X_test, y_test, test_labels = load_data(TEST_DIR,IMG_SIZE)
 
 with st.sidebar:
-    selected = option_menu("Main Menu", ["Introduction", "Emotion Classifier", ], 
-        icons=['house', 'file-bar-graph'], menu_icon="cast", default_index=0)
+    selected = option_menu("Main Menu", ["Introduction", "Model Explorer", "About Me"], 
+        icons=['house', 'layers', 'text-left'], menu_icon="cast", default_index=0)
  
 
 if selected == "Introduction":
-    tab1, tab2, tab3= st.tabs(["Introduction", "About this Dataset", "Dataset Augmention"])
+    tab1, tab2, tab3, tab4, tab5= st.tabs(["Introduction", "About this Dataset", "Dataset Augmention", "Dimensionality Reduction", "Model Selection and Tuning"])
     with tab1: 
         st.header("Facial Emotion Classification!")
         st.image("behavior_facial_expressions_emotions-100718798-orig.webp")
@@ -138,7 +164,7 @@ if selected == "Introduction":
  
         
     with tab2: 
-        st.subheader("About this Dataset:")
+        st.header("About this Dataset")
         link = "https://www.kaggle.com/datasets/apollo2506/facial-recognition-dataset"
         st.markdown("This dataset used to train and test the models in this project was collected from the Kaggle competition: \"Challenges in Representation Learning: Facial Expression Recognition Challenge\". and originally used in the comp contains folders pertaining to different expressions of the human face, namely. Surprise, Anger, Happiness, Sad, Neutral, and Fear. The dataset was presplit into training and testing subcategories at about an 80\% ratio. The dataset contained 35257 images, with the training set containing  28,079 samples in total and the testing set consisting of 7,178 samples in total. The data consists of 48x48 pixel grayscale images of faces. The faces have been automatically registered so that the face is more or less centered and occupies about the same amount of space in each image. The dataset was originally curated by Pierre-Luc Carrier and Aaron Courville, as part of a research project. A link to the dataset can be found below:")
         st.markdown("[Kaggle Facial Recognition Dataset](%s)" %link)
@@ -157,18 +183,18 @@ if selected == "Introduction":
             st.pyplot(fig)
 
     with tab3:
-        st.subheader("Data augmentations:")
+        st.header("Data Augmentation")
         augview = st.radio("Would you like to:", ["View training augments", "Generate training augments"], horizontal=True,)
         if augview == "View training augments":
-            st.write("As part of the preprocessing process, data was augmented in the following ways:")
-            string = '''- 30% augmented data added\\
-                Height randomly shifted by up to 20%\\
-                    Width randomly shifted by up to 20%\\
-                    Images randomly flipped horizontally\\
-                    Images randomly rotated left/right by up to 20 degrees\\
-                        RGB values normalized (0-255) -> (0-1)'''
-            st.write(string)
-            st.write("Click the button below to preview some of the augmented data:")
+            st.write('''In order to maximize model performance, we chose to augment data in several ways (Nelson, 2022). 
+            For this project, we created a function that randomly selected 30% of the samples from each class 
+            (in order to preserve class frequencies), and performed the following augmentations: randomly shift x-axis values by up to 10 pixels, 
+            randomly shift y-axis values by up to 10 pixels, randomly flip images across y-axis, and randomly rotate images by up to 20 degrees. 
+            Additionally, pixel values were normalized from integers ranging from (0-255) to floats ranging from (0-1)
+            Augmented images were combined with the original training set, 
+            creating a new total training set of 35,754 images. For both sets, data was rescaled so that the mean pixel value (about 129) was 0.''')
+          
+            st.write("Click the button below to preview some of the augmented data, or click above to generate your own augmented dataset! The augmented dataset will be saved and can be used later on for training your own model!")
             col1, col2, col3 = st.columns([2,2,1])
             with col1:
                 numberrows = st.number_input("Number of Rows:", value=3, placeholder="3",key='row2')
@@ -180,13 +206,30 @@ if selected == "Introduction":
                 X_train, y_train, train_labels = load_data(TRAIN_DIR, IMG_SIZE)
                 augmentindicies = getclasssamples(y_train)
                 X_augmented = augment_images(X_train[augmentindicies])
-                fig = check_labels(X_augmented, y_train, train_labels)
+                fig = check_labels(X_augmented, y_train[augmentindicies], train_labels)
                 st.pyplot(fig)
         if augview == "Generate training augments":
+            
             tilt = st.number_input("##### Max tilt:", value=20)
             vshift = st.number_input("##### Max Vertical Shift (in pixels):", value=10)
             hshift = st.number_input("##### Max Horizontal Shift (in pixels):", value=10)
-            flip = st.toggle("Randomly flip images?")
+            
+            cola, colb = st.columns([1,2])
+            with cola:
+                flip = st.toggle("Randomly flip images?")
+            with colb:
+                colc, cold = st.columns([1,1])
+                with colc:
+                    add = st.toggle("Replace augmented images?")
+                with cold:
+                    numaugment = st.number_input("Augmentation Percentage:", value = .30, min_value=0.0, max_value=1.0, step=.05)
+                    helpbutton = st.checkbox('Help!', key='helpalpha')
+            if helpbutton == True:
+                advice = '''Augmentation Percentage refers to the subset of images selected from the training set for augmentation. By default, this subset will
+                be added on top of the origininal training set to increase the size of the training set, however, if replace augmented images is selected, this subset
+                will instead replace its respective original images. The algorithm will randomly augment images up to the max values specified above.'''
+                st.markdown(advice)
+            
             col1, col2, col3 = st.columns([2,2,1])
             with col1:
                 numberrows = st.number_input("Number of Rows:", value=3, placeholder="3",key='row2')
@@ -195,26 +238,87 @@ if selected == "Introduction":
             with col3:
                 generate = st.button("Generate", type="primary",key='but2')
             if generate:
+                st.write("Augmenting images...")
                 X_train, y_train, train_labels = load_data(TRAIN_DIR, IMG_SIZE)
-                augmentindicies = getclasssamples(y_train)
-                X_augmented = augment_images(X_train[augmentindicies],flip=flip,vshift=vshift,hshift=hshift,tilt=tilt)
-                st.session_state['X_augmented'] = np.concatenate((X_train, X_augmented), axis=0)
-                st.session_state['y_fulltrain'] = np.concatenate((y_train, y_train[augmentindicies]), axis=0)
-                fig = check_labels(X_augmented, y_train, train_labels)
+                augmentindicies = getclasssamples(y_train, numaugment)
+                if add:
+                    X_augmented = augment_images(X_train[augmentindicies],flip=flip,vshift=vshift,hshift=hshift,tilt=tilt)
+                    X_train[augmentindicies] = X_augmented
+                    st.session_state['X_augmented'] = X_train
+                    st.session_state['y_fulltrain'] = y_train
+                    
+                else:
+                    X_augmented = augment_images(X_train[augmentindicies],flip=flip,vshift=vshift,hshift=hshift,tilt=tilt)
+                    st.session_state['X_augmented'] = np.concatenate((X_train, X_augmented), axis=0)
+                    st.session_state['y_fulltrain'] = np.concatenate((y_train, y_train[augmentindicies]), axis=0)
+
+                st.write(f"New training set of length {len(st.session_state['X_augmented'])} saved, and can be accessed in the model builder!")
+                fig = check_labels(X_augmented, y_train[augmentindicies], train_labels)
                 st.pyplot(fig)
 
+    with tab4:
+        st.header('Dimentionality Reduction')
 
-            
+        st.write('''In this project, in order to reduce the dimentionality of the dataset,
+        a two stage approach was employed, in which we first applied a Principal Component Analysis (PCA) 
+        where we attempted to maintain 99% of the explained variance of the data,
+         and then applied a Linear Discriminant Analysis (LDA), where we intended to reduce data dimensionality even 
+         further by projecting it to the most ‘discriminative’ directions.
+        ''')
+        st.write('''Below is a graph of explained variance ratio vs number of components. Using the slider, select a desired explained variance ratio, and click generate to see a visualization of its effect on the data!''')
+        if 'PCAgraph' in st.session_state:
+            pca = st.session_state["PCAgraph"]
+            dataset = st.session_state["dataset"]
+        else:
+            X_test, y_test, test_labels = load_data(TEST_DIR,IMG_SIZE)
+            dataset = X_test
+            pca = PCA()
+            pca.fit(dataset.reshape(len(dataset),48*48))
+            st.session_state["PCAgraph"] = pca
+            st.session_state["dataset"] = dataset
+        col1, col2 = st.columns([6,1])
+        with col1:
+            ratio = st.slider('Select Variance Ratio', min_value=0.500, max_value=1.000, value=0.95, step=0.001, format="%.3f")
+        with col2:
+            generatepca = st.button("Generate PCA") 
+        #running pca without components to capture all component data
+        fig = plt.figure()
+        plt.plot(np.cumsum(pca.explained_variance_ratio_))
+        x = np.linspace(0, (len(dataset[0])*len(dataset[0,0])), 100)
+        y = ratio * np.ones_like(x)
+        plt.plot(x, y, label=f'y = {ratio}')
+        st.pyplot(fig)
 
+        
+        if generatepca:
+            pca2, transform2, fig2, ax2 = apply_pca(dataset, ratio=ratio, sample=True)
+            st.pyplot(fig2)
+
+   
+
+    with tab5:
+        st.header("Model Selection and Tuning")
+        st.write("Below is a summary of the models used, as well as the hyperparameters tested using a gridsearch.")
+        st.subheader("Model 1: Gaussian Naïve Bayes Classification")
+        st.write("A classification method assuming continuous features follow a Gaussian distribution. Using Bayes' theorem, it predicts class probabilities based on these assumptions, proving effective for classification tasks with continuous data despite its simple assumption of feature independence. Hyperparameters tested include: 'var_smoothing': [5e-9,1e-9,5e-8,1e-8,5e-7,1e-7,5e-6, 1e-6,5e-5,1e-5]")
+        st.subheader("Model 2: Stochastic Gradient Descent Classification")
+        st.write("An iterative optimization algorithm used in machine learning for training models. It updates parameters by considering individual data samples or small batches, making it efficient for large datasets. The algorithm aims to minimize the loss function by adjusting model parameters in the direction that reduces the error, ultimately leading to a well-performing classifier. Tested parameters include: 'alpha': [0.0001, 0.001, 0.01], 'loss': ['hinge', 'log_loss', 'modified_huber'], 'penalty': ['l1', 'l2', 'elasticnet'], 'max_iter': [1000, 2000, 3000],  'tol': [1e-3, 1e-4, 1e-5]")
+        st.subheader("Model 3: C-Support Vector Classification")
+        st.write("A type of model that explores different settings and kernel functions to effectively classify data. By varying parameters like regularization strength, kernel types, and gamma settings, it aims to determine the most suitable configuration for accurate classification in diverse scenarios. Tested hyperparameters include:  'C': [0.1, .5, 1, 10],  'kernel': ['linear', 'rbf'], and  'gamma': ['scale', 'auto']")        
+        st.subheader("Model 4: Multilayer Perceptron Classification")
+        st.write("A type of neural network that uses multiple layers of interconnected nodes to learn and classify data. By passing information through these layers, it can identify patterns and relationships within complex datasets, making it effective for various classification tasks. Tested hyperparameters include: 'hidden_layer_sizes': [(50,), (100,), (50,50), (100,50)],  'activation': ['relu', 'tanh'], 'solver': ['adam', 'sgd'], and  'alpha': [0.0001, 0.001, 0.01]")
 
 
         #samples = check_labels(X_train, y_train, train_labels, sample_size = (3,5))
        
 
 
-if selected == "Emotion Classifier":
+if selected == "Model Explorer":
     tab1, tab2= st.tabs(["Model Explorer", "Model Builder"])
     with tab1:
+        st.header("Model Explorer")
+        st.write('''Welcome to the model explorer. In this tab you can test and compare different models and the different ways they classify emotions. Below you have the option to upload an image, as well as select a model to use for classification. The image should be of a person's face. This image will be rescaled to be 48x48 pixels (it is suggested to use an already square image) and converted to grayscale. 
+        After uploading the image, you will see the class probability reported by the selected model. In the next tab, you have the option to create your own models, using the augmented dataset from before! Once generated, you will have the option to test them here. User models will be stored in the "User Model" slots. Have fun!''')
         with open(OUTPUT_DIR / 'trainedscaler.pickle', "rb") as f:
             fittedscaler = pickle.load(f)
         with open(OUTPUT_DIR / 'trainedPCA.pickle', "rb") as f:
@@ -267,12 +371,12 @@ if selected == "Emotion Classifier":
                 if 'usermodel1' in st.session_state:
                     model2 = st.session_state['usermodel1']
                 else:
-                    st.write("User Model 1 has not been defined!")
+                    st.write("User Model 1 has not been defined! Go to the next tab and create a model!")
             if model_choice2 == "User Model 2":
                 if 'usermodel2' in st.session_state:
                     model2 = st.session_state['usermodel2']
                 else:
-                    st.write("User Model 2 has not been defined!")
+                    st.write("User Model 2 has not been defined! Go to the next tab and create a model!")
             
             uploaded_file = st.file_uploader("Upload Image")
             col1, col2 = st.columns([1,1])
@@ -350,12 +454,12 @@ if selected == "Emotion Classifier":
                 if 'usermodel1' in st.session_state:
                     model = st.session_state['usermodel1']
                 else:
-                    st.write("User Model 1 has not been defined!")
+                    st.write("User Model 1 has not been defined! Go to the next tab and create a model!")
             if model_choice == "User Model 2":
                 if 'usermodel2' in st.session_state:
                     model = st.session_state['usermodel2']
                 else:
-                    st.write("User Model 2 has not been defined!")
+                    st.write("User Model 2 has not been defined! Go to the next tab and create a model!")
             uploaded_file = st.file_uploader("Upload Image")
             if uploaded_file is not None and 'model' in globals():
                 col1, col2 = st.columns([1,1])
@@ -462,7 +566,7 @@ if selected == "Emotion Classifier":
                 if gamma='scale' (default) is passed then it uses 1 / (n_features * X.var()) as value of gamma,
                 \\if ‘auto’, uses 1 / n_features'''
                 st.markdown(advice)
-            usermodel = SVC(C=C,kernel=kernel,gamma=gamma)
+            usermodel = SVC(C=C,kernel=kernel,gamma=gamma, probability=True)
 
         generate = st.button("Generate Model", type="primary")
         if generate:
@@ -494,5 +598,11 @@ if selected == "Emotion Classifier":
             if saveslot == "Save Slot 2":
                 usermodel2 = usermodel
                 st.session_state['usermodel2'] = usermodel
-            
+if selected == "About Me": 
+    st.header("About Me")
+    col1, col2 = st.columns([1,1])
+    with col1:
+        st.image("goodheadshot.jpeg")
+    with col2:  
+        st.write("Hello! My name is Edmond Anderson and I am a second year in the Masters of Data Science program at Michigan State University. I got my undergraduate degrees in Mathematics and Psychology, and I am interested in the ways humans experience computers, and the ways cpmputers experience humans. Specifically, I am curious about the ways in which Artificial Intellegence can understand and manipulate human emotions, as well as the ethicallity behind such applications of machine learning. I am also interested in studying the ways in which recommender systems and generative models can alter and affect human behaviour and beliefs. I currently work in the Shiu Lab here at MSU, where I study applications of topic modeling and knowledge graphs on very large scale datasets.")  
             
